@@ -169,27 +169,10 @@ div#thinking {
 
             function power() {
                 var label = document.getElementById('cpu_power').value;
-                return label == "ants" ? 50
-                     : label == "bees" ? 200
-                     : label == "dogs" ? 300
-                     : 400;
-            }
-
-            function update(lines) {
-                for (var i = 0; i < 6; ++i) {
-                    for (var j = 0; j < 7; ++j) {
-                        var td = document.getElementById(`td_${i}_${j}`);
-                        if (lines[i][j] == 'x' && td.classList.contains('empty')) {
-                            td.classList.remove('empty');
-                            td.classList.add('x');
-                            td.classList.add('new');
-                        } else if (lines[i][j] == 'o' && td.classList.contains('empty')) {
-                            td.classList.remove('empty');
-                            td.classList.add('o');
-                            td.classList.add('new');
-                        }
-                    }
-                }
+                return label == "ants" ? 10
+                     : label == "bees" ? 50
+                     : label == "dogs" ? 100
+                     : 200;
             }
 
             // Game -> code
