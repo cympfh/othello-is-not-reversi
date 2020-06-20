@@ -4,11 +4,14 @@
         <script defer src="https://use.fontawesome.com/releases/v5.0.6/js/all.js"></script>
         <title>Othello is not Reversi</title>
 <style>
+td {
+    cursor: pointer;
+}
 td.x {
-    background-color: #202020;
+    background-color: #404040;
 }
 td.x.new {
-    background-color: #0f0f0f;
+    background-color: #101010;
 }
 td.o {
     background-color: #d0d0d0;
@@ -133,10 +136,10 @@ div#thinking {
                     table.appendChild(tr);
                 }
                 cout();
-                put('x', 3, 3);
-                put('o', 3, 4);
-                put('o', 4, 3);
-                put('x', 4, 4);
+                put('o', 3, 3);
+                put('x', 3, 4);
+                put('x', 4, 3);
+                put('o', 4, 4);
                 unthink();
                 if (next_player == cpucolor) {
                     solve();
@@ -160,8 +163,8 @@ div#thinking {
                 var label = document.getElementById('cpu_power').value;
                 return label == "ants" ? 7
                      : label == "bees" ? 100
-                     : label == "dogs" ? 300
-                     : label == "whales" ? 800
+                     : label == "dogs" ? 200
+                     : label == "whales" ? 300
                      : 200;
             }
 
@@ -197,18 +200,24 @@ div#thinking {
             }
 
             // code -> Game
-            function display(code) {
+            function display(code, color) {
                 var lines = code.split(';');
+                var x = 0; var y = 0;
                 for (var i = 0; i < 8; ++i) {
                     for (var j = 0; j < 8; ++j) {
                         var td = document.getElementById(`td_${i}_${j}`);
+                        var c = lines[i][j];
+                        if (td.classList.contains('empty') && c != '.') { // moved here!
+                            x = i;
+                            y = j;
+                        }
                         td.classList.remove('o');
                         td.classList.remove('x');
                         td.classList.remove('empty');
-                        var c = lines[i][j];
                         td.classList.add(c == 'o' ? 'o' : c == 'x' ? 'x' : 'empty');
                     }
                 }
+                put(color, x, y);
             }
 
             function remove_new() {
@@ -240,7 +249,7 @@ div#thinking {
                     } else if (response.stdout == "Invalid Move") {
                         cout("Invalid Move");
                     } else {
-                        display(response.stdout);
+                        display(response.stdout, humancolor);
                         put(humancolor, x, y);
                         next_player = cpucolor;
                         solve();
@@ -265,7 +274,7 @@ div#thinking {
                         cout("Passed");
                         next_player = humancolor;
                     } else {
-                        display(response.stdout);
+                        display(response.stdout, cpucolor);
                         next_player = humancolor;
                     }
                     is_finish();
