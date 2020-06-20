@@ -44,7 +44,7 @@ pub struct Game {
     pub next: Entity,
     pub height: usize,
     pub width: usize,
-    data: Vec<Vec<Entity>>,
+    pub data: Vec<Vec<Entity>>,
 }
 
 impl Game {

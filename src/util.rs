@@ -13,3 +13,10 @@ pub fn mdist((x, y): (usize, usize), (u, v): (usize, usize)) -> usize {
 pub fn cdist((x, y): (usize, usize), (u, v): (usize, usize)) -> usize {
     std::cmp::max(uabs(x, u), uabs(y, v))
 }
+
+#[derive(Debug, PartialOrd, PartialEq)]
+pub enum HyperFloat {
+    MinInf,
+    Real(f64),
+    Inf,
+}

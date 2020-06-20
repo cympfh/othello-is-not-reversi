@@ -1,11 +1,55 @@
 use rand::prelude::*;
 
 use crate::game::{Entity, Game, Move};
-use crate::util::{cdist, mdist};
+use crate::util::{cdist, mdist, HyperFloat};
 
 pub struct Solver {
     verbose: bool,
     num_try: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Pos {
+    Corner, // 角
+    X,      // 角の斜め隣
+    C,      // 角の横
+    Edge,
+    Other,
+}
+use Pos::*;
+
+impl Pos {
+    fn from(i: usize, j: usize, height: usize, width: usize) -> Self {
+        let md = *vec![
+            mdist((i, j), (0, 0)),
+            mdist((i, j), (0, width - 1)),
+            mdist((i, j), (height - 1, 0)),
+            mdist((i, j), (height - 1, width - 1)),
+        ]
+        .iter()
+        .min()
+        .unwrap();
+        let cd = *vec![
+            cdist((i, j), (0, 0)),
+            cdist((i, j), (0, width - 1)),
+            cdist((i, j), (height - 1, 0)),
+            cdist((i, j), (height - 1, width - 1)),
+        ]
+        .iter()
+        .min()
+        .unwrap();
+        if md == 0 {
+            Corner
+        } else if md == 2 && cd == 1 {
+            X
+        } else if md == 1 && cd == 1 {
+            C
+        } else if i == 0 || i == height - 1 || j == 0 || j == width - 1 {
+            Edge
+        } else {
+            Other
+        }
+    }
 }
 
 impl Solver {
@@ -13,38 +57,25 @@ impl Solver {
         Self { verbose, num_try }
     }
 
+    // 場所を選ぶ確率
+    fn cell_prob(game: &Game, i: usize, j: usize) -> i32 {
+        match Pos::from(i, j, game.height, game.width) {
+            Corner => 3,
+            X => 1,
+            C => 1,
+            Edge => 2,
+            Other => 2,
+        }
+    }
+
     // 場所の良さ
-    fn cell_weight(game: &Game, i: usize, j: usize) -> i32 {
-        let md = *vec![
-            mdist((i, j), (0, 0)),
-            mdist((i, j), (0, game.width - 1)),
-            mdist((i, j), (game.height - 1, 0)),
-            mdist((i, j), (game.height - 1, game.width - 1)),
-        ]
-        .iter()
-        .min()
-        .unwrap();
-        let cd = *vec![
-            cdist((i, j), (0, 0)),
-            cdist((i, j), (0, game.width - 1)),
-            cdist((i, j), (game.height - 1, 0)),
-            cdist((i, j), (game.height - 1, game.width - 1)),
-        ]
-        .iter()
-        .min()
-        .unwrap();
-        if md == 0 {
-            10
-        } else if md == 1 {
-            1
-        } else if md == 2 && cd == 1 {
-            1
-        } else if md == 2 && cd == 2 {
-            4
-        } else if md == 3 && cd == 3 {
-            4
-        } else {
-            2
+    fn cell_goodness(game: &Game, i: usize, j: usize) -> f64 {
+        match Pos::from(i, j, game.height, game.width) {
+            Corner => 6.0,
+            X => -2.0,
+            C => -1.0,
+            Edge => 0.1,
+            Other => 0.05,
         }
     }
 
@@ -58,9 +89,7 @@ impl Solver {
         } else {
             let mut rng = thread_rng();
             let mv = *mvs
-                .choose_weighted(&mut rng, |&Move(_, (i, j))| {
-                    Solver::cell_weight(&game, i, j)
-                })
+                .choose_weighted(&mut rng, |&Move(_, (i, j))| Solver::cell_prob(&game, i, j))
                 .unwrap();
             let _ = game.play_mut(&mv);
         }
@@ -86,37 +115,75 @@ impl Solver {
     }
 
     /// 勝つ確率の推定
-    pub fn estimate_prob(&self, game: &Game) -> f64 {
+    pub fn estimate_prob(&self, game: &Game, debug: bool) -> f64 {
+        // モンテカルロで勝つ割合
+        let offset = 100;
         let mut win = 0;
         for _ in 0..self.num_try {
             if game.next == self.playroll_random(&game) {
                 win += 1;
             }
         }
-        win as f64 / self.num_try as f64
+        let win_ratio = ((win + offset) as f64 / (self.num_try + 2 * offset) as f64).ln();
+
+        // 場所の良さ
+        let mut goodness_self = 0.001;
+        let mut goodness_enemy = 0.001;
+        for i in 0..game.height {
+            for j in 0..game.width {
+                if game.data[i][j] == game.next {
+                    goodness_self += Solver::cell_goodness(&game, i, j);
+                } else if game.data[i][j] == -game.next {
+                    goodness_enemy += Solver::cell_goodness(&game, i, j);
+                }
+            }
+        }
+        let goodness_position = goodness_self - goodness_enemy;
+
+        // 打てる場所の数
+        let num_moves_self = game.moves(game.next).len();
+        let num_moves_enemy = game.moves(-game.next).len();
+        let moves_ratio = ((num_moves_self + 3) as f64 / (num_moves_enemy + 3) as f64).ln();
+
+        let value = win_ratio + goodness_position * 0.3 + moves_ratio * 1.5;
+        if debug {
+            println!("winning: {} / {}", win, self.num_try);
+            println!("good_pos: {} / {}", goodness_self, goodness_enemy);
+            println!("num_moves: {} / {}", num_moves_self, num_moves_enemy);
+            println!(
+                "win: {:?}, good_pos: {:?}, moves: {:?} => value: {}",
+                win_ratio, goodness_position, moves_ratio, value
+            );
+        }
+        value
     }
 
     pub fn run(&self, game: &Game) -> Option<Game> {
         if game.is_finish() {
             return None;
         }
-        let mut maxp = -0.1;
+        let mut maxp = HyperFloat::MinInf;
         let mut goodgame = None;
         for &mv in game.moves(game.next).iter() {
             let g = game.play(&mv).ok().unwrap();
-            let mut minp = 1.1;
+            let mut h_min = g.clone();
+            let mut minp = HyperFloat::Inf;
             for &mv in g.moves(g.next).iter() {
                 let h = g.play(&mv).ok().unwrap();
-                let p = self.estimate_prob(&h);
+                let p = HyperFloat::Real(self.estimate_prob(&h, false));
                 if minp > p {
                     minp = p;
+                    h_min = h.clone();
                 }
             }
             if self.verbose {
                 println!("---");
                 println!("Move: {:?}", &mv);
                 g.write();
-                println!("Prob: {:.3}", minp);
+                println!("=>");
+                h_min.write();
+                self.estimate_prob(&h_min, true);
+                println!("Prob: {:?}", minp);
                 println!("---");
             }
             if maxp < minp {

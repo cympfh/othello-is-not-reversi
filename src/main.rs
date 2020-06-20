@@ -13,7 +13,7 @@ enum SubCommand {
     Solve {
         #[structopt(short, long)]
         verbose: bool,
-        #[structopt(long, default_value = "200")]
+        #[structopt(long, default_value = "50")]
         /// number of random simulations
         num_try: usize,
         /// 'o' or 'x'
