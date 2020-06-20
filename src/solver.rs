@@ -79,20 +79,23 @@ impl Solver {
         }
     }
 
+    // その手を選ぶ確率
+    fn move_prob(game: &Game, mv: Move) -> i32 {
+        match mv {
+            Move::Pass => 1,
+            Move::Put(_, (i, j)) => Solver::cell_prob(&game, i, j),
+        }
+    }
+
+    /// ランダムに一手選んで打つ
     pub fn play_random_mut(&self, game: &mut Game) {
         let next = game.next;
-        let prev = -game.next;
         let mvs = game.moves(next);
-        if mvs.len() == 0 {
-            // pass
-            game.next = prev;
-        } else {
-            let mut rng = thread_rng();
-            let mv = *mvs
-                .choose_weighted(&mut rng, |&Move(_, (i, j))| Solver::cell_prob(&game, i, j))
-                .unwrap();
-            let _ = game.play_mut(&mv);
-        }
+        let mut rng = thread_rng();
+        let mv = *mvs
+            .choose_weighted(&mut rng, |&mv| Solver::move_prob(&game, mv))
+            .unwrap();
+        game.play_mut(mv);
     }
 
     /// ランダムにプレイして決着をつける
@@ -127,8 +130,8 @@ impl Solver {
         let win_ratio = ((win + offset) as f64 / (self.num_try + 2 * offset) as f64).ln();
 
         // 場所の良さ
-        let mut goodness_self = 0.001;
-        let mut goodness_enemy = 0.001;
+        let mut goodness_self = 0_f64;
+        let mut goodness_enemy = 0_f64;
         for i in 0..game.height {
             for j in 0..game.width {
                 if game.data[i][j] == game.next {
@@ -143,9 +146,9 @@ impl Solver {
         // 打てる場所の数
         let num_moves_self = game.moves(game.next).len();
         let num_moves_enemy = game.moves(-game.next).len();
-        let moves_ratio = ((num_moves_self + 3) as f64 / (num_moves_enemy + 3) as f64).ln();
+        let moves_ratio = (num_moves_self as f64).ln() - (num_moves_enemy as f64).ln();
 
-        let value = win_ratio + goodness_position * 0.3 + moves_ratio * 1.5;
+        let value = win_ratio + goodness_position * 0.4 + moves_ratio * 1.5;
         if debug {
             println!("winning: {} / {}", win, self.num_try);
             println!("good_pos: {} / {}", goodness_self, goodness_enemy);
@@ -165,11 +168,11 @@ impl Solver {
         let mut maxp = HyperFloat::MinInf;
         let mut goodgame = None;
         for &mv in game.moves(game.next).iter() {
-            let g = game.play(&mv).ok().unwrap();
+            let g = game.play(mv);
             let mut h_min = g.clone();
             let mut minp = HyperFloat::Inf;
             for &mv in g.moves(g.next).iter() {
-                let h = g.play(&mv).ok().unwrap();
+                let h = g.play(mv);
                 let p = HyperFloat::Real(self.estimate_prob(&h, false));
                 if minp > p {
                     minp = p;

@@ -58,7 +58,7 @@ fn main() {
         SubCommand::Move { next, x, y } => {
             let next = Entity::from_char(next);
             let mut game = Game::read(next);
-            let mv = Move(next, (x, y));
+            let mv = Move::Put(next, (x, y));
             if game.is_finish() {
                 let (o, x) = game.count();
                 if o > x {
@@ -68,12 +68,9 @@ fn main() {
                 } else {
                     println!("Game Over; Draw");
                 }
-            } else if game.is_valid_move(&mv) {
-                if let Ok(_) = game.play_mut(&mv) {
-                    game.write();
-                } else {
-                    println!("Invalid Move");
-                }
+            } else if game.is_valid_move(mv) {
+                game.play_mut(mv);
+                game.write();
             } else {
                 println!("Invalid Move");
             }

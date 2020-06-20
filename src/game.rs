@@ -37,7 +37,10 @@ impl Neg for Entity {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Move(pub Entity, pub (usize, usize));
+pub enum Move {
+    Put(Entity, (usize, usize)),
+    Pass,
+}
 
 #[derive(Debug, Clone)]
 pub struct Game {
@@ -93,96 +96,115 @@ impl Game {
 
     /// mv したときにひっくり返せる (dx, dy) 方向のライン上のコマ
     fn reversal_line(&self, mv: Move, dx: isize, dy: isize) -> Option<Vec<(usize, usize)>> {
-        let Move(next, (x, y)) = mv;
-        if self.data[x][y] != Empty {
-            return None;
-        }
-        let mut x = x;
-        let mut y = y;
-        let mut line = vec![];
-        loop {
-            let ix = x as isize + dx;
-            let iy = y as isize + dy;
-            if ix < 0 || iy < 0 {
-                return None;
-            }
-            x = ix as usize;
-            y = iy as usize;
-            if x >= self.height || y >= self.width {
-                return None;
-            }
-            match self.data[x][y] {
-                Empty => return None,
-                c if c == next => {
-                    if line.len() > 0 {
-                        return Some(line);
-                    } else {
+        match mv {
+            Move::Pass => None,
+            Move::Put(next, (x, y)) => {
+                if self.data[x][y] != Empty {
+                    return None;
+                }
+                let mut x = x;
+                let mut y = y;
+                let mut line = vec![];
+                loop {
+                    let ix = x as isize + dx;
+                    let iy = y as isize + dy;
+                    if ix < 0 || iy < 0 {
                         return None;
                     }
-                }
-                _ => {
-                    line.push((x, y));
+                    x = ix as usize;
+                    y = iy as usize;
+                    if x >= self.height || y >= self.width {
+                        return None;
+                    }
+                    match self.data[x][y] {
+                        Empty => return None,
+                        c if c == next => {
+                            if line.len() > 0 {
+                                return Some(line);
+                            } else {
+                                return None;
+                            }
+                        }
+                        _ => {
+                            line.push((x, y));
+                        }
+                    }
                 }
             }
         }
     }
 
     /// 次おける場所全て
-    pub fn moves(&self, next: Entity) -> Vec<Move> {
+    pub fn puttables(&self, next: Entity) -> Vec<(usize, usize)> {
         let mut r = vec![];
         for i in 0..self.height {
             for j in 0..self.width {
                 let mut ok = false;
                 for &(dx, dy) in Game::DEGS.iter() {
-                    if self.reversal_line(Move(next, (i, j)), dx, dy).is_some() {
+                    if self
+                        .reversal_line(Move::Put(next, (i, j)), dx, dy)
+                        .is_some()
+                    {
                         ok = true;
                         break;
                     }
                 }
                 if ok {
-                    r.push(Move(next, (i, j)));
+                    r.push((i, j));
                 }
             }
         }
         r
     }
 
-    pub fn play_mut(&mut self, mv: &Move) -> Result<(), ()> {
-        if self.next != mv.0 {
-            return Err(());
+    /// 次に打てる手の全て
+    pub fn moves(&self, next: Entity) -> Vec<Move> {
+        let ps = self.puttables(next);
+        if ps.is_empty() {
+            vec![Move::Pass]
+        } else {
+            ps.iter().map(|&(i, j)| Move::Put(next, (i, j))).collect()
         }
-        let &Move(_, (i, j)) = mv;
-        if self.data[i][j] != Empty {
-            return Err(());
-        }
-        for &(dx, dy) in Game::DEGS.iter() {
-            if let Some(line) = self.reversal_line(Move(self.next, (i, j)), dx, dy) {
-                for &(u, v) in line.iter() {
-                    self.data[u][v] = self.next;
+    }
+
+    /// NOTE: mv should be already validated.
+    pub fn play_mut(&mut self, mv: Move) {
+        match mv {
+            Move::Pass => {
+                self.next = -self.next;
+            }
+            Move::Put(_, (i, j)) => {
+                for &(dx, dy) in Game::DEGS.iter() {
+                    if let Some(line) = self.reversal_line(Move::Put(self.next, (i, j)), dx, dy) {
+                        for &(u, v) in line.iter() {
+                            self.data[u][v] = self.next;
+                        }
+                    }
                 }
+                self.data[i][j] = self.next;
+                self.next = -self.next;
             }
         }
-        self.data[i][j] = self.next;
-        self.next = -self.next;
-        Ok(())
     }
 
-    pub fn play(&self, mv: &Move) -> Result<Game, ()> {
+    /// NOTE: mv should be validated
+    pub fn play(&self, mv: Move) -> Game {
         let mut g = self.clone();
-        if let Ok(_) = g.play_mut(&mv) {
-            Ok(g)
-        } else {
-            Err(())
-        }
+        g.play_mut(mv);
+        g
     }
 
-    pub fn is_valid_move(&self, mv: &Move) -> bool {
-        self.moves(mv.0).iter().any(|&pair| pair == *mv)
+    pub fn is_valid_move(&self, mv: Move) -> bool {
+        let ps = self.puttables(self.next);
+        match mv {
+            Move::Pass => ps.is_empty(),
+            Move::Put(next, (i, j)) => self.next == next && ps.iter().any(|&pos| pos == (i, j)),
+        }
     }
 
     /// どちらも打てない盤面なら終了
     pub fn is_finish(&self) -> bool {
-        self.moves(O).is_empty() && self.moves(X).is_empty()
+        self.puttables(O).is_empty() && self.puttables(X).is_empty()
     }
 
     /// (O, X) の数
@@ -221,23 +243,23 @@ mod tests {
             // ..x.
             // .xxo
         };
-        assert_eq!(game.reversal_line(Move(O, (0, 0)), 0, 1), None);
+        assert_eq!(game.reversal_line(Move::Put(O, (0, 0)), 0, 1), None);
         assert_eq!(
-            game.reversal_line(Move(O, (0, 1)), 0, 1),
+            game.reversal_line(Move::Put(O, (0, 1)), 0, 1),
             Some(vec![(0, 2)])
         );
         assert_eq!(
-            game.reversal_line(Move(O, (0, 1)), 1, 1),
+            game.reversal_line(Move::Put(O, (0, 1)), 1, 1),
             Some(vec![(1, 2)])
         );
-        assert_eq!(game.reversal_line(Move(O, (0, 2)), 0, 1), None);
-        assert_eq!(game.reversal_line(Move(O, (1, 1)), 1, 1), None);
-        assert_eq!(game.reversal_line(Move(O, (1, 1)), 1, -1), None);
-        assert_eq!(game.reversal_line(Move(O, (1, 3)), 0, 1), None);
-        assert_eq!(game.reversal_line(Move(O, (1, 3)), -1, 0), None);
-        assert_eq!(game.reversal_line(Move(O, (1, 3)), 1, 0), None);
+        assert_eq!(game.reversal_line(Move::Put(O, (0, 2)), 0, 1), None);
+        assert_eq!(game.reversal_line(Move::Put(O, (1, 1)), 1, 1), None);
+        assert_eq!(game.reversal_line(Move::Put(O, (1, 1)), 1, -1), None);
+        assert_eq!(game.reversal_line(Move::Put(O, (1, 3)), 0, 1), None);
+        assert_eq!(game.reversal_line(Move::Put(O, (1, 3)), -1, 0), None);
+        assert_eq!(game.reversal_line(Move::Put(O, (1, 3)), 1, 0), None);
         assert_eq!(
-            game.reversal_line(Move(O, (2, 0)), 0, 1),
+            game.reversal_line(Move::Put(O, (2, 0)), 0, 1),
             Some(vec![(2, 1), (2, 2)])
         );
     }
@@ -257,7 +279,7 @@ mod tests {
             // ..x.
             // .xxo
         };
-        assert_eq!(game.moves(O), vec![Move(O, (0, 1)), Move(O, (2, 0)),]);
+        assert_eq!(game.moves(O), vec![(0, 1), (2, 0),]);
         assert_eq!(game.moves(X), vec![]);
     }
 
@@ -276,7 +298,7 @@ mod tests {
             // ..x.
             // .xxo
         };
-        let result = game.play_mut(&Move(O, (0, 1)));
+        let result = game.play_mut(Move::Put(O, (0, 1)));
         assert_eq!(result, Ok(()));
         assert_eq!(
             game.data,
