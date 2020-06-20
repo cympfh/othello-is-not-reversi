@@ -161,11 +161,10 @@ div#thinking {
 
             function power() {
                 var label = document.getElementById('cpu_power').value;
-                return label == "ants" ? 7
-                     : label == "bees" ? 100
-                     : label == "dogs" ? 200
-                     : label == "whales" ? 300
-                     : 200;
+                return label == "ants" ? 50
+                     : label == "bees" ? 200
+                     : label == "dogs" ? 300
+                     : 400;
             }
 
             function update(lines) {
@@ -291,7 +290,7 @@ div#thinking {
                         finish(response.stdout);
                     }
                 });
-                xhr.open("GET", `/othello/move/${game_to_code()}?next_player=o&x=0&y=0`, true);
+                xhr.open("GET", `/othello/move/${game_to_code()}?next_player=o&x=3&y=3`, true);
                 xhr.send();
             }
 
