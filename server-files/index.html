@@ -1,0 +1,313 @@
+<html>
+    <head>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.4.3/css/bulma.min.css">
+        <script defer src="https://use.fontawesome.com/releases/v5.0.6/js/all.js"></script>
+        <title>Othello is not Reversi</title>
+<style>
+td.x {
+    background-color: #202020;
+}
+td.x.new {
+    background-color: #0f0f0f;
+}
+td.o {
+    background-color: #d0d0d0;
+}
+td.o.new {
+    background-color: #ffffff;
+}
+td.empty {
+    background-color: #90c090;
+}
+td.empty:hover {
+    background-color: #b0c0b0;
+}
+div#section_game {
+    display: none;
+}
+div#section_finished {
+    display: none;
+}
+div#thinking {
+    display: none;
+}
+</style>
+    </head>
+    <body>
+        <div class="section">
+            <nav class="navbar" role="navigation" aria-label="main navigation">
+                <div class="navbar-brand">
+                    <h1 class="title">Othello is not Reversi</h1>
+                </div>
+            </nav>
+        </div>
+
+        <div class="section" id="section_choose">
+            <div class="container">
+                <h1 class="title">Choose</h1>
+                <a class="button" id="button_start_human">You are first</a>
+                <a class="button" id="button_start_cpu">CPU are first</a>
+            </div>
+        </div>
+        <div class="section" id="section_finished">
+            <div class="container">
+                <h1 class="title" id="result">Game Finished</h1>
+                <p><i class="fas fa-redo"></i> <a href="javascript:location.reload()">Refresh to Restart</a></p>
+            </div>
+        </div>
+
+
+        <div class="section" id="section_game">
+            <div class="container">
+                <div class="field">
+                    <div class="field has-addons">
+                        <p class="control">
+                            <a class="button is-static">CPU Power</a>
+                        </p>
+                        <p class="control">
+                            <div class="select">
+                                <select id="cpu_power">
+                                    <option value="ants">Ants</option>
+                                    <option value="bees" selected="selected">Bees</option>
+                                    <option value="dogs">Dogs</option>
+                                    <option value="whales">Whales</option>
+                                </select>
+                            </div>
+                        </p>
+                    </div>
+                </div>
+                <div class="container">
+                    <div class="table-container">
+                        <table class="table is-bordered" id="game">
+                        </table>
+                    </div>
+                </div>
+                <div class="container">
+                    <p id="thinking"><i class="fa fa-spinner fa-spin" aria-hidden="true"></i> Thinking...</p>
+                    <p id="console"></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="container">
+                <p>If you cannot see 8x8 table, You need more wide monitor. Not tested on Mobile Phones.</p>
+            </div>
+        </div>
+
+        <script>
+            var next_player = 'x';
+            var humancolor = 'o';
+            var cpucolor = 'x';
+
+            // events
+            document.getElementById('button_start_human').addEventListener('click', (e) => init('human'));
+            document.getElementById('button_start_cpu').addEventListener('click', (e) => init('cpu'));
+
+            function init(first) {
+
+                if (first == 'human') {
+                    humancolor = 'x';
+                    cpucolor = 'o';
+                } else {
+                    humancolor = 'o';
+                    cpucolor = 'x';
+                }
+
+                var table = document.getElementById("game");
+                table.innerHTML = '';
+                for (var i = 0; i < 8; ++i) {
+                    var tr = document.createElement("tr");
+                    for (var j = 0; j < 8; ++j) {
+                        var td = document.createElement("td");
+                        td.innerHTML = `${i},${j}`;
+                        td.id = `td_${i}_${j}`;
+                        td.classList.add("empty");
+                        tr.appendChild(td);
+                        td.addEventListener("click", ((i, j) => (
+                            (e) => {
+                                human_put(i, j);
+                            }
+                        ))(i, j));
+                    }
+                    table.appendChild(tr);
+                }
+                cout();
+                put('x', 3, 3);
+                put('o', 3, 4);
+                put('o', 4, 3);
+                put('x', 4, 4);
+                unthink();
+                if (next_player == cpucolor) {
+                    solve();
+                }
+                document.getElementById('section_choose').style.display = 'none';
+                document.getElementById('section_game').style.display = 'block';
+            }
+
+            function cout(msg) {
+                var con = document.getElementById('console');
+                var base = `You are ${humancolor == 'x' ? 'black' : 'white'}`;
+                if (msg) {
+                    con.innerHTML = msg;
+                    setTimeout(() => { cout(base) }, 2000);
+                } else {
+                    con.innerHTML = base;
+                }
+            }
+
+            function power() {
+                var label = document.getElementById('cpu_power').value;
+                return label == "ants" ? 7
+                     : label == "bees" ? 100
+                     : label == "dogs" ? 300
+                     : label == "whales" ? 800
+                     : 200;
+            }
+
+            function update(lines) {
+                for (var i = 0; i < 6; ++i) {
+                    for (var j = 0; j < 7; ++j) {
+                        var td = document.getElementById(`td_${i}_${j}`);
+                        if (lines[i][j] == 'x' && td.classList.contains('empty')) {
+                            td.classList.remove('empty');
+                            td.classList.add('x');
+                            td.classList.add('new');
+                        } else if (lines[i][j] == 'o' && td.classList.contains('empty')) {
+                            td.classList.remove('empty');
+                            td.classList.add('o');
+                            td.classList.add('new');
+                        }
+                    }
+                }
+            }
+
+            // Game -> code
+            function game_to_code() {
+                var code = [];
+                for (var i = 0; i < 8; ++i) {
+                    var line = '';
+                    for (var j = 0; j < 8; ++j) {
+                        var td = document.getElementById(`td_${i}_${j}`);
+                        line += td.classList.contains('x') ? 'x' : td.classList.contains('o') ? 'o' : '.';
+                    }
+                    code.push(line);
+                }
+                return code.join(';');
+            }
+
+            // code -> Game
+            function display(code) {
+                var lines = code.split(';');
+                for (var i = 0; i < 8; ++i) {
+                    for (var j = 0; j < 8; ++j) {
+                        var td = document.getElementById(`td_${i}_${j}`);
+                        td.classList.remove('o');
+                        td.classList.remove('x');
+                        td.classList.remove('empty');
+                        var c = lines[i][j];
+                        td.classList.add(c == 'o' ? 'o' : c == 'x' ? 'x' : 'empty');
+                    }
+                }
+            }
+
+            function remove_new() {
+                for (var i = 0; i < 8; ++i) {
+                    for (var j = 0; j < 8; ++j) {
+                        var td = document.getElementById(`td_${i}_${j}`);
+                        td.classList.remove('new');
+                    }
+                }
+            }
+
+            function put(next, x, y) {
+                remove_new();
+                var td = document.getElementById(`td_${x}_${y}`);
+                td.classList.remove("empty");
+                td.classList.add(next);
+                td.classList.add("new");
+            }
+
+            function human_put(x, y) {
+                if (next_player != humancolor) {
+                    return
+                }
+                var xhr = new XMLHttpRequest();
+                xhr.addEventListener("load", () => {
+                    var response = JSON.parse(xhr.responseText);
+                    if (response.stdout.split(';')[0] == "Game Over") {
+                        finish(response.stdout);
+                    } else if (response.stdout == "Invalid Move") {
+                        cout("Invalid Move");
+                    } else {
+                        display(response.stdout);
+                        put(humancolor, x, y);
+                        next_player = cpucolor;
+                        solve();
+                    }
+                    // unthink();
+                    is_finish();
+                });
+                xhr.open("GET", `/othello/move/${game_to_code()}?next_player=${humancolor}&x=${x}&y=${y}`);
+                xhr.send();
+                // think();
+            }
+
+            function solve() {
+                think();
+                var xhr = new XMLHttpRequest();
+                xhr.addEventListener("load", () => {
+                    var response = JSON.parse(xhr.responseText);
+                    unthink();
+                    if (response.stdout.split(';')[0] == "Game Over") {
+                        finish(response.stdout);
+                    } else if (response.stdout == "Pass") {
+                        cout("Passed");
+                        next_player = humancolor;
+                    } else {
+                        display(response.stdout);
+                        next_player = humancolor;
+                    }
+                    is_finish();
+                });
+                xhr.open("GET", `/othello/solve/${game_to_code()}?next_player=${cpucolor}&num_try=${power()}`, true);
+                xhr.send();
+            }
+
+            function is_finish() {
+                var xhr = new XMLHttpRequest();
+                xhr.addEventListener("load", () => {
+                    var response = JSON.parse(xhr.responseText);
+                    if (response.stdout.split(';')[0] == "Game Over") {
+                        finish(response.stdout);
+                    }
+                });
+                xhr.open("GET", `/othello/move/${game_to_code()}?next_player=o&x=0&y=0`, true);
+                xhr.send();
+            }
+
+            function finish(msg) {
+                unthink();
+                next_player = '-';
+                var result = (msg == "Game Over; X Win" && cpucolor == 'x') ? "Game Over; CPU Win"
+                : (msg == "Game Over; X Win" && humancolor == 'x') ? "Game Over; You Win"
+                : (msg == "Game Over; O Win" && cpucolor == 'o') ? "Game Over; CPU Win"
+                : (msg == "Game Over; O Win" && humancolor == 'o') ? "Game Over; You Win"
+                : "Game Over; Draw";
+                document.getElementById('result').innerHTML = result;
+                document.getElementById('section_finished').style.display = 'block';
+            }
+
+            function think() {
+                console.log('think');
+                document.getElementById('thinking').style.display = 'block';
+            }
+
+            function unthink() {
+                console.log('unthink');
+                document.getElementById('thinking').style.display = 'none';
+            }
+
+        </script>
+    </body>
+</html>

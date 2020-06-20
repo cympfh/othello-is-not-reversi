@@ -1,0 +1,10 @@
+[package]
+name = "othello-is-not-reversi"
+version = "0.1.0"
+authors = ["whoami <whose@mail.ai>"]
+edition = "2018"
+
+[dependencies]
+structopt = "0.3.14"
+rand = "*"
+rand_distr = "*"
