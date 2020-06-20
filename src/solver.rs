@@ -1,7 +1,7 @@
 use rand::prelude::*;
 
 use crate::game::{Entity, Game, Move};
-use crate::util::mdist;
+use crate::util::{cdist, mdist};
 
 pub struct Solver {
     verbose: bool,
@@ -15,17 +15,34 @@ impl Solver {
 
     // 場所の良さ
     fn cell_weight(game: &Game, i: usize, j: usize) -> i32 {
-        let ds = vec![
+        let md = *vec![
             mdist((i, j), (0, 0)),
             mdist((i, j), (0, game.width - 1)),
             mdist((i, j), (game.height - 1, 0)),
             mdist((i, j), (game.height - 1, game.width - 1)),
-        ];
-        let d = *ds.iter().min().unwrap();
-        if d == 0 {
-            5
-        } else if d == 1 {
+        ]
+        .iter()
+        .min()
+        .unwrap();
+        let cd = *vec![
+            cdist((i, j), (0, 0)),
+            cdist((i, j), (0, game.width - 1)),
+            cdist((i, j), (game.height - 1, 0)),
+            cdist((i, j), (game.height - 1, game.width - 1)),
+        ]
+        .iter()
+        .min()
+        .unwrap();
+        if md == 0 {
+            10
+        } else if md == 1 {
             1
+        } else if md == 2 && cd == 1 {
+            1
+        } else if md == 2 && cd == 2 {
+            4
+        } else if md == 3 && cd == 3 {
+            4
         } else {
             2
         }
@@ -83,16 +100,16 @@ impl Solver {
         if game.is_finish() {
             return None;
         }
-        let mut maxp = -1.0;
+        let mut maxp = -0.1;
         let mut goodgame = None;
         for &mv in game.moves(game.next).iter() {
             let g = game.play(&mv).ok().unwrap();
-            let mut minp = 2.0;
+            let mut minp = 1.1;
             for &mv in g.moves(g.next).iter() {
                 let h = g.play(&mv).ok().unwrap();
-                let prob = self.estimate_prob(&h);
-                if minp > prob {
-                    minp = prob;
+                let p = self.estimate_prob(&h);
+                if minp > p {
+                    minp = p;
                 }
             }
             if self.verbose {
