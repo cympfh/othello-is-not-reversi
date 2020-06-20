@@ -83,11 +83,11 @@ impl Solver {
         if game.is_finish() {
             return None;
         }
-        let mut maxp = 0.0;
+        let mut maxp = -1.0;
         let mut goodgame = None;
         for &mv in game.moves(game.next).iter() {
             let g = game.play(&mv).ok().unwrap();
-            let mut minp = 1.0;
+            let mut minp = 2.0;
             for &mv in g.moves(g.next).iter() {
                 let h = g.play(&mv).ok().unwrap();
                 let prob = self.estimate_prob(&h);
