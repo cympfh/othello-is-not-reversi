@@ -86,6 +86,7 @@ div#thinking {
                     </div>
                 </div>
                 <div class="container">
+                    <p><a class="button" id="pass_button">Pass</a></p>
                     <p id="thinking"><i class="fa fa-spinner fa-spin" aria-hidden="true"></i> Thinking...</p>
                     <p id="console"></p>
                 </div>
@@ -146,6 +147,13 @@ div#thinking {
                 }
                 document.getElementById('section_choose').style.display = 'none';
                 document.getElementById('section_game').style.display = 'block';
+                document.getElementById('pass_button').addEventListener('click', (e) => {
+                    if (next_player == humancolor) {
+                        next_player = cpucolor;
+                        cout("You Passed");
+                        solve();
+                    }
+                });
             }
 
             function cout(msg) {
