@@ -166,7 +166,7 @@ div#thinking {
                 var base = `You are ${humancolor == 'x' ? 'black' : 'white'}`;
                 if (msg) {
                     con.innerHTML = msg;
-                    setTimeout(() => { cout(base) }, 2000);
+                    setTimeout(() => { cout(base) }, 5000);
                 } else {
                     con.innerHTML = base;
                 }
@@ -197,7 +197,7 @@ div#thinking {
             // code -> Game
             function display(code, color) {
                 var lines = code.split(';');
-                var x = 0; var y = 0;
+                var x = -1; var y = -1;
                 for (var i = 0; i < 8; ++i) {
                     for (var j = 0; j < 8; ++j) {
                         var td = document.getElementById(`td_${i}_${j}`);
@@ -212,7 +212,10 @@ div#thinking {
                         td.classList.add(c == 'o' ? 'o' : c == 'x' ? 'x' : 'empty');
                     }
                 }
-                put(color, x, y);
+                if (x >= 0 && y >= 0) {
+                    put(color, x, y);
+                }
+                cout("Your Turn");
             }
 
             function remove_new() {
