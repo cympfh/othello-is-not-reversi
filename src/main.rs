@@ -18,6 +18,14 @@ enum SubCommand {
         num_try: usize,
         /// 'o' or 'x'
         next: char,
+        #[structopt(long, default_value = "10")]
+        try_smooth: usize,
+        #[structopt(long, default_value = "1.0")]
+        coeff_montecarlo: f64,
+        #[structopt(long, default_value = "0.4")]
+        coeff_position: f64,
+        #[structopt(long, default_value = "1.9")]
+        coeff_moves: f64,
     },
     /// Simulate Game Move
     Move {
@@ -37,9 +45,13 @@ fn main() {
             verbose,
             next,
             num_try,
+            try_smooth,
+            coeff_montecarlo,
+            coeff_position,
+            coeff_moves,
         } => {
             let game = Game::read(Entity::from_char(next));
-            let solver = Solver::new(verbose, num_try);
+            let solver = Solver::new(verbose, num_try, try_smooth, coeff_montecarlo, coeff_position, coeff_moves);
             if game.is_finish() {
                 let (o, x) = game.count();
                 if o > x {

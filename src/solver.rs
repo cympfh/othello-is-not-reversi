@@ -6,6 +6,10 @@ use crate::util::{cdist, mdist, HyperFloat};
 pub struct Solver {
     verbose: bool,
     num_try: usize,
+    try_smooth: usize,
+    coeff_montecarlo:f64,
+    coeff_position:f64,
+    coeff_moves:f64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,8 +57,8 @@ impl Pos {
 }
 
 impl Solver {
-    pub fn new(verbose: bool, num_try: usize) -> Self {
-        Self { verbose, num_try }
+    pub fn new(verbose: bool, num_try: usize, try_smooth: usize, coeff_montecarlo: f64, coeff_position: f64, coeff_moves: f64) -> Self {
+        Self { verbose, num_try, try_smooth, coeff_montecarlo, coeff_position, coeff_moves }
     }
 
     // 場所を選ぶ確率
@@ -120,14 +124,13 @@ impl Solver {
     /// 勝つ確率の推定
     pub fn estimate_prob(&self, game: &Game, debug: bool) -> f64 {
         // モンテカルロで勝つ割合
-        let offset = 100;
         let mut win = 0;
         for _ in 0..self.num_try {
             if game.next == self.playroll_random(&game) {
                 win += 1;
             }
         }
-        let win_ratio = ((win + offset) as f64 / (self.num_try + 2 * offset) as f64).ln();
+        let win_ratio = ((win + self.try_smooth) as f64 / (self.num_try + 2 * self.try_smooth) as f64).ln();
 
         // 場所の良さ
         let mut goodness_self = 0_f64;
@@ -148,7 +151,10 @@ impl Solver {
         let num_moves_enemy = game.moves(-game.next).len();
         let moves_ratio = (num_moves_self as f64).ln() - (num_moves_enemy as f64).ln();
 
-        let value = win_ratio + goodness_position * 0.4 + moves_ratio * 1.5;
+        let value =
+            win_ratio * self.coeff_montecarlo
+            + goodness_position * self.coeff_position
+            + moves_ratio * self.coeff_moves;
         if debug {
             println!("winning: {} / {}", win, self.num_try);
             println!("good_pos: {} / {}", goodness_self, goodness_enemy);
